@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# --- keshik-specific ---
+
+
+# Datasets & trained models — never commit
+training/data/
+
+# Secrets
+secrets.h
+*.env.local
+
+# Editor
+.vscode/
