@@ -49,10 +49,12 @@ with v1.
 
 ## Status
 
-Day zero — main board (XIAO ESP32S3 Sense) in hand, ordering the remaining
-parts (radar, LoRa modules, power circuit components). Currently building the
-training pipeline. First milestone: camera → TFLM inference → SD save,
-powered from a powerbank.
+Day zero — main board (XIAO ESP32S3 Sense) in hand; still need to order the
+radar, LoRa modules, and power circuit components. Data pipeline notebook
+committed: streams and filters Wake Vision into a balanced person/not-person
+subset (excluding depictions, restricting positives to the radar's ~4m
+detection range), feeding a PyTorch DataLoader. First milestone: camera →
+TFLM inference → SD save, powered from a powerbank.
 
 ## Measurements
 
