@@ -49,12 +49,13 @@ with v1.
 
 ## Status
 
-Day zero — main board (XIAO ESP32S3 Sense) in hand; still need to order the
-radar, LoRa modules, and power circuit components. Data pipeline notebook
-committed: streams and filters Wake Vision into a balanced person/not-person
-subset (excluding depictions, restricting positives to the radar's ~4m
-detection range), feeding a PyTorch DataLoader. First milestone: camera →
-TFLM inference → SD save, powered from a powerbank.
+First full train/validation run completed on the debug subset: confirmed
+overfitting (validation performance peaked within the first several epochs,
+then degraded for the rest of training), expected at this dataset size and
+now guarded against with best-checkpoint saving. Next: scale the training
+set toward 10k+ images per class and validate against Wake Vision's own
+independent validation split before drawing conclusions about real-world
+accuracy.
 
 ## Measurements
 

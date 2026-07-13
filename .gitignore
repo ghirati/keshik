@@ -221,8 +221,12 @@ __marimo__/
 # --- keshik-specific ---
 
 
+TODO.txt
+
 # Datasets & trained models — never commit
 training/data/
+training/models/
+
 
 # Secrets
 secrets.h
