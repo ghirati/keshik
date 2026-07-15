@@ -40,7 +40,7 @@ def build_dataloaders(train_dir, val_dir, batch_size, grayscale, augmentation, n
 
     train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
     val_dataset = datasets.ImageFolder(val_dir, transform=val_transform)
-    print(train_dataset.classes, train_dataset.class_to_idx)
+    print(f"{train_dataset.classes}, {train_dataset.class_to_idx}\n")
 
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -120,12 +120,12 @@ def train(model, train_loader, val_loader, device, num_epochs, learning_rate, l2
                 [epoch+1, avg_train_loss, train_acc, avg_val_loss, accuracy, precision, recall, f1])
 
         least_val_loss = save_checkpoint(
-            model, avg_val_loss, least_val_loss, checkpoint_dir, epoch)
+            model, avg_val_loss, least_val_loss, checkpoint_dir)
 
     return model, train_losses, val_losses, val_accuracies, val_precisions, val_recalls, val_f1s
 
 
-def validate(model, val_loader, loss_fn, device, threshold):
+def validate(model, val_loader, loss_fn, device, threshold, label="Validation"):
     model.eval()
     val_loss = 0.0
     tp = fp = tn = fn = 0
@@ -153,17 +153,19 @@ def validate(model, val_loader, loss_fn, device, threshold):
             (precision+recall) if (precision+recall) else 0.0
         avg_val_loss = val_loss / len(val_loader)
         tqdm.write(
-            f"Validation -> Loss: {avg_val_loss:.4f}, Acc: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}\n ------------------")
+            f"{label} -> Loss: {avg_val_loss:.4f}, Acc: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
 
     return avg_val_loss, accuracy, precision, recall, f1
 
 
-def save_checkpoint(model, avg_val_loss, least_val_loss, checkpoint_dir, epoch):
+def save_checkpoint(model, avg_val_loss, least_val_loss, checkpoint_dir):
     if (avg_val_loss < least_val_loss):
         least_val_loss = avg_val_loss
         torch.save(model.state_dict(),
                    f"{checkpoint_dir}/least_val_loss_model.pth")
-        tqdm.write(f"Best model saved -> epoch: {epoch+1}.")
+        tqdm.write(f"Best model saved.\n------------------")
+    else:
+        tqdm.write("------------------")
     return least_val_loss
 
 

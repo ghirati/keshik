@@ -44,9 +44,7 @@ def main():
     loss_fn = nn.BCEWithLogitsLoss()
 
     avg_test_loss, accuracy, precision, recall, f1 = validate(
-        model, test_loader, loss_fn, device, args.threshold)
-    print(
-        f"Test -> Loss: {avg_test_loss:.4f}, Acc: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+        model, test_loader, loss_fn, device, args.threshold, label="Test")
 
 
 if __name__ == "__main__":
