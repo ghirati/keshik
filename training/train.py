@@ -6,34 +6,52 @@ import argparse
 import csv
 from tqdm import tqdm
 import torch
-from torchvision import transforms as T
+from torchvision.transforms import v2 as T
 import torch.nn as nn
 import os
 
 
-def build_dataloaders(train_dir, val_dir, batch_size, grayscale, num_workers):
-    if grayscale:
-        transform = T.Compose([
+def build_dataloaders(train_dir, val_dir, batch_size, grayscale, augmentation, num_workers):
+    if augmentation:
+        train_transform = T.Compose([
+            T.RandomHorizontalFlip(p=0.5),
+            T.ColorJitter(brightness=0.2, contrast=0.2),
+            T.RandomRotation(degrees=10),
             # ImageFolder will treat images as RGB images, even if they're stored as grayscale.
-            T.Grayscale(),
-            T.ToTensor(),
-        ])
-    else:
-        transform = T.Compose([
-            T.ToTensor(),
+            T.Grayscale() if grayscale else T.Identity(),
+            T.ToImage(),
+            T.ToDtype(torch.float32, scale=True),
         ])
 
-    train_dataset = datasets.ImageFolder(train_dir, transform=transform)
-    val_dataset = datasets.ImageFolder(val_dir, transform=transform)
+        val_transform = T.Compose([
+            # ImageFolder will treat images as RGB images, even if they're stored as grayscale.
+            T.Grayscale() if grayscale else T.Identity(),
+            T.ToImage(),
+            T.ToDtype(torch.float32, scale=True),
+        ])
+
+    else:
+        train_transform = val_transform = T.Compose([
+            # ImageFolder will treat images as RGB images, even if they're stored as grayscale.
+            T.Grayscale() if grayscale else T.Identity(),
+            T.ToImage(),
+            T.ToDtype(torch.float32, scale=True),
+        ])
+
+    train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
+    val_dataset = datasets.ImageFolder(val_dir, transform=val_transform)
     print(train_dataset.classes, train_dataset.class_to_idx)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     return train_loader, val_loader
 
 
 def build_model(alpha, in_channels, num_512_blocks):
-    model = ModifiedMobileNetV1(alpha=alpha, in_channels=in_channels, num_512_blocks=num_512_blocks)
+    model = ModifiedMobileNetV1(
+        alpha=alpha, in_channels=in_channels, num_512_blocks=num_512_blocks)
     return model
 
 
@@ -161,9 +179,11 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--alpha", type=float, default=0.25)
     parser.add_argument("--grayscale", action="store_true")
+    parser.add_argument("--augmentation", action="store_true")
     parser.add_argument("--num-512-blocks", type=int, default=5)
     parser.add_argument("--num-workers", type=int, default=10)
     parser.add_argument("--checkpoint-dir", default="models")
+
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -171,11 +191,12 @@ def main():
     torch.cuda.manual_seed(args.seed)
 
     train_loader, val_loader = build_dataloaders(
-                                train_dir=args.train_dir,
-                                val_dir=args.val_dir,
-                                batch_size=args.batch_size,
-                                grayscale=args.grayscale,
-                                num_workers=args.num_workers)
+        train_dir=args.train_dir,
+        val_dir=args.val_dir,
+        batch_size=args.batch_size,
+        grayscale=args.grayscale,
+        augmentation=args.augmentation,
+        num_workers=args.num_workers)
 
     in_channels = 1 if args.grayscale else 3
     model = build_model(
