@@ -49,13 +49,18 @@ with v1.
 
 ## Status
 
-First full train/validation run completed on the debug subset: confirmed
-overfitting (validation performance peaked within the first several epochs,
-then degraded for the rest of training), expected at this dataset size and
-now guarded against with best-checkpoint saving. Next: scale the training
-set toward 10k+ images per class and validate against Wake Vision's own
-independent validation split before drawing conclusions about real-world
-accuracy.
+First full training run completed on train_quality (1,124,505 images):
+best validation loss at epoch 12 of 30 (later epochs overfit — validation
+loss rose while training loss kept falling). At the epoch-12 checkpoint,
+threshold-tuned on the validation set to 0.2: validation accuracy 82.0%,
+F1 0.830; test-set accuracy 82.2%, F1 0.832 (Wake Vision paper's
+MobileNetV2-0.25 reference on train_quality: 84.89% accuracy).
+Full metrics in training/results/train_quality_run1_metrics.csv.
+
+Next: convert this checkpoint to a quantized on-device model (ONNX →
+int8 TFLite) and get inference running on the ESP32-S3. Real-hardware
+fine-tuning depends on that working — the model may need architecture
+or quantization changes once it's actually running on the MCU.
 
 ## Measurements
 
