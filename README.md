@@ -16,6 +16,8 @@ over LoRa — no infrastructure required.
 
 ## How it works
 
+*(Target design — firmware and hardware integration in progress; see Status.)*
+
 When the mmWave radar detects presence, it powers up the ESP32-S3 through a
 MOSFET switch. The camera captures a frame, and a quantized CNN — running
 on-device via TensorFlow Lite Micro with Espressif's ESP-NN kernels, which use
@@ -42,10 +44,11 @@ SD card.
 
 ## The ML pipeline
 
-A small MobileNet-style CNN trained in PyTorch on the Wake Vision dataset,
-exported through ONNX and fully int8-quantized (post-training) for TensorFlow
-Lite Micro. Details, training code, and accuracy numbers will land here
-with v1.
+A hand-built MobileNetV1-style CNN (α=0.25, 96×96 input) trained from scratch
+in PyTorch on Wake Vision's train_quality split (1.1M images), to be exported
+through ONNX and fully int8-quantized (post-training) for TensorFlow Lite
+Micro. Training code: [training/](training/). First full training run and
+results: see Status below.
 
 ## Status
 
@@ -53,7 +56,7 @@ First full training run completed on train_quality (1,124,505 images):
 best validation loss at epoch 12 of 30 (later epochs overfit — validation
 loss rose while training loss kept falling).
 
-![Training vs. validation loss](results/train_quality_run1_loss_curve.png)
+![Training vs. validation loss](training/results/train_quality_run1_loss_curve.png)
 
 At the epoch-12 checkpoint, threshold-tuned on the validation set to 0.2:
 validation accuracy 82.1%, F1 0.830; test-set accuracy 82.2%, F1 0.832
@@ -67,10 +70,11 @@ or quantization changes once it's actually running on the MCU.
 
 ## Measurements
 
-Coming with each version: inference latency, model accuracy on a
-self-captured test set, idle current draw, projected battery life, and
-end-to-end alert latency.
+Hardware/firmware numbers, coming with each version: on-device inference
+latency, idle current draw, projected battery life, end-to-end alert
+latency. (Model accuracy on Wake Vision: see Status.)
 
 ## Acknowledgments & License
 
-Code is MIT-licensed — see [LICENSE](LICENSE).
+Person-detection model trained on the [Wake Vision](https://huggingface.co/datasets/Harvard-Edge/Wake-Vision)
+dataset (CC-BY-4.0). Code is MIT-licensed — see [LICENSE](LICENSE).
