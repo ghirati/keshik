@@ -156,6 +156,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.venv-export
 
 # Spyder project settings
 .spyderproject
@@ -226,6 +227,7 @@ TODO.txt
 # Datasets & trained models — never commit
 training/data/
 training/models/
+training/export/
 
 
 # Secrets
