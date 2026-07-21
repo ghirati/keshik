@@ -45,10 +45,9 @@ SD card.
 ## The ML pipeline
 
 A hand-built MobileNetV1-style CNN (α=0.25, 96×96 input) trained from scratch
-in PyTorch on Wake Vision's train_quality split (1.1M images), to be exported
-through ONNX and fully int8-quantized (post-training) for TensorFlow Lite
-Micro. Training code: [training/](training/). First full training run and
-results: see Status below.
+in PyTorch on Wake Vision's train_quality split (1.1M images), exported through
+ONNX and fully int8-quantized (post-training) for TensorFlow Lite Micro.
+Training and export code: [training/](training/). Results: see Status below.
 
 ## Status
 
@@ -63,10 +62,15 @@ validation accuracy 82.1%, F1 0.830; test-set accuracy 82.2%, F1 0.832
 (Wake Vision paper's MobileNetV2-0.25 reference on train_quality: 84.89%
 accuracy). Full metrics in training/results/train_quality_run1_metrics.csv.
 
-Next: convert this checkpoint to a quantized on-device model (ONNX →
-int8 TFLite) and get inference running on the ESP32-S3. Real-hardware
-fine-tuning depends on that working — the model may need architecture
-or quantization changes once it's actually running on the MCU.
+Model exported to a fully int8-quantized TFLite model (~296 KB) via
+ONNX → onnx2tf, with per-channel weight quantization calibrated on a
+1,058-image sample. Quantized accuracy (82.9% on the calibration/validation
+sample) matches the float32 checkpoint — confirming quantization introduced
+no meaningful degradation.
+
+Next: integrate the quantized model into ESP32-S3 firmware via TensorFlow
+Lite Micro and measure on-device inference latency and memory (arena) usage.
+Real-hardware fine-tuning follows once the device is capturing labeled images.
 
 ## Measurements
 
