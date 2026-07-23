@@ -68,9 +68,15 @@ ONNX → onnx2tf, with per-channel weight quantization calibrated on a
 sample) matches the float32 checkpoint — confirming quantization introduced
 no meaningful degradation.
 
-Next: integrate the quantized model into ESP32-S3 firmware via TensorFlow
-Lite Micro and measure on-device inference latency and memory (arena) usage.
-Real-hardware fine-tuning follows once the device is capturing labeled images.
+Model loads and runs on the XIAO ESP32S3 Sense via TensorFlow Lite Micro
+(ESP_TF library, ESP-NN kernels enabled): schema version confirmed, all six
+ops the model uses resolve correctly, tensors allocate successfully
+(arena usage: 122,684 bytes; sized to 140KB for headroom).
+
+Next: run actual inference on-device against a known test image and confirm
+the output matches the Python-side quantized model, then measure real
+inference latency. Camera and radar integration follow once inference is
+verified correct.
 
 ## Measurements
 
