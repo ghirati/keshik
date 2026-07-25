@@ -16,7 +16,8 @@ over LoRa — no infrastructure required.
 
 ## How it works
 
-*(Target design — firmware and hardware integration in progress; see Status.)*
+*(Target design — inference verified on-device; camera and radar integration
+still in progress. See Status.)*
 
 When the mmWave radar detects presence, it powers up the ESP32-S3 through a
 MOSFET switch. The camera captures a frame, and a quantized CNN — running
@@ -51,11 +52,14 @@ Training and export code: [training/](training/). Results: see Status below.
 
 ## Status
 
-First full training run completed on train_quality (1,124,505 images):
-best validation loss at epoch 12 of 30 (later epochs overfit — validation
-loss rose while training loss kept falling).
+First full training run completed on train_quality (1,124,505 images).
 
 ![Training vs. validation loss](training/results/train_quality_run1_loss_curve.png)
+
+Validation loss bottomed at epoch 12 (0.452, down from 0.517) and rose
+thereafter while training loss kept falling — overfitting past that point,
+expected at this model/data ratio and handled by best-checkpoint saving.
+The epoch-12 checkpoint is what was quantized and deployed.
 
 At the epoch-12 checkpoint, threshold-tuned on the validation set to 0.2:
 validation accuracy 82.1%, F1 0.830; test-set accuracy 82.2%, F1 0.832
@@ -73,18 +77,32 @@ Model loads and runs on the XIAO ESP32S3 Sense via TensorFlow Lite Micro
 ops the model uses resolve correctly, tensors allocate successfully
 (arena usage: 122,684 bytes; sized to 140KB for headroom).
 
-Next: run actual inference on-device against a known test image and confirm
-the output matches the Python-side quantized model, then measure real
-inference latency. Camera and radar integration follow once inference is
-verified correct.
+On-device inference verified against two known test images (one per class):
+model output matches the Python-side quantized model within float-vs-int8
+rounding tolerance (person: 0.9661 vs. 0.9624; not_person: 0.0462 vs. 0.0487).
+Inference latency: 83ms per frame — under the ~100-200ms target, and fast
+enough to confirm the ESP-NN optimized kernels are genuinely active.
+
+Spot-checking the validation set surfaced a small number of labeled-person
+images where no person is discernible at 96×96 — consistent with the ~2.2%
+label error rate the Wake Vision paper itself reports on this split.
+
+Next: replace the hardcoded test images with a live camera capture, resize,
+and quantize pipeline; then integrate the radar-triggered power gating.
 
 ## Measurements
 
-Hardware/firmware numbers, coming with each version: on-device inference
-latency, idle current draw, projected battery life, end-to-end alert
-latency. (Model accuracy on Wake Vision: see Status.)
+On-device inference latency: **83ms** per frame (ESP32-S3, TFLM + ESP-NN
+kernels, int8 quantized model).
+
+Still pending, coming with camera/radar integration: idle current draw,
+projected battery life, end-to-end alert latency (capture → decision →
+LoRa alert received). Model accuracy: see Status.
 
 ## Acknowledgments & License
 
 Person-detection model trained on the [Wake Vision](https://huggingface.co/datasets/Harvard-Edge/Wake-Vision)
-dataset (CC-BY-4.0). Code is MIT-licensed — see [LICENSE](LICENSE).
+dataset (CC-BY-4.0). Built with Claude (Anthropic) as a collaborator throughout,
+for architecture discussions, code review, debugging, code suggestions when
+stuck, and planning the hardware design (not yet assembled). Code is
+MIT-licensed — see [LICENSE](LICENSE).
