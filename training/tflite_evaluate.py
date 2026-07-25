@@ -12,6 +12,7 @@ def main():
         "--model-path", default="export/tf_model/model_full_integer_quant.tflite")
     parser.add_argument("--data-dir", default="data/validation")
     parser.add_argument("--threshold", type=float, default=0.2)
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
     interpreter = Interpreter(model_path=args.model_path)
@@ -43,6 +44,8 @@ def main():
 
         correct += (pred == label)
         total += 1
+        if (args.verbose):
+            print(f"label={label}, prob={prob[0][0]:.4f}, pred={pred}")
 
     print(f"Quantized accuracy: {correct/total:.4f} ({correct}/{total})")
 
