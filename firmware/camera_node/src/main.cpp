@@ -9,19 +9,28 @@
 namespace {
 // Model starts empty; raw model bytes get loaded in setup().
 const tflite::Model* model = nullptr;
+
 // Interpreter is created later in setup(), once the model and resolver exist.
 tflite::MicroInterpreter* interpreter = nullptr;
+
 // Register only the ops this model actually uses.
 // tensorflow/lite/micro/all_ops_resolver.h would register every op TFLM
 // supports, for convenience, but that costs flash space and RAM for
 // ops the model never uses.
 tflite::MicroMutableOpResolver<6> micro_op_resolver;
+
 // Tensor arena: fixed-size scratch memory for the interpreter.
 // Rather than letting the MCU allocate memory freely at runtime,
 // this pre-sized buffer is handed to AllocateTensors(), which divides
 // it between everything the model needs (inputs, outputs, activations).
-constexpr int kTensorArenaSize =
-    140 * 1024;  // measured usage: 122,684 bytes; kept headroom above 120*1024.
+// measured usage with interpreter->arena_used_bytes(): 122,684 bytes;
+// kept headroom above 120*1024.
+constexpr int kTensorArenaSize = 140 * 1024;
+// alignas(16): the ESP32-S3's vector instructions (used by ESP-NN's
+// optimized kernels) operate on 16-byte chunks and need data aligned
+// to a 16-byte boundary to use the fast path correctly. Without this,
+// tensors inside the arena could end up misaligned, silently falling
+// back to slow scalar code or failing outright.
 alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 }  // namespace
 
@@ -29,21 +38,27 @@ alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 // size) and prints the raw output, dequantized probability, and inference
 // latency. `label` is just for identifying which image this run was.
 void run_inference(const int8_t* image_data, const char* label) {
+  // handle to input tensor slot 0 (the only one)
   TfLiteTensor* input = interpreter->input(0);
+  // copy image into the model's input memory
   memcpy(input->data.int8, image_data, input->bytes);
 
   unsigned long start = millis();
+  // Runs the model's forward pass
   if (interpreter->Invoke() != kTfLiteOk) {
     Serial.println("Invoke failed!");
     while (true) {
     }
   }
   unsigned long elapsed = millis() - start;
-
+  // handle to output tensor slot 0 (the only one)
   TfLiteTensor* output = interpreter->output(0);
   float output_scale = output->params.scale;
   int output_zero_point = output->params.zero_point;
+  // Coming out of the model (int8 -> real logit):
+  // real_logit = (output_int8 - output_zero_point) * output_scale
   float logit = (output->data.int8[0] - output_zero_point) * output_scale;
+  // sigmoid: maps the real-valued logit to a probability in [0, 1]
   float prob = 1.0 / (1.0 + exp(-logit));
 
   Serial.print(label);
@@ -70,6 +85,11 @@ void setup() {
     }
   }
 
+  // These six ops match what Netron shows in the .tflite graph — not
+  // the ONNX graph, which differs after onnx2tf conversion (e.g. Pad
+  // wasn't in the ONNX graph at all; onnx2tf introduced it for
+  // stride-2 convs). Missing an op here fails at AllocateTensors()
+  // with a confusing "op not found" error.
   micro_op_resolver.AddConv2D();
   micro_op_resolver.AddRelu6();
   micro_op_resolver.AddDepthwiseConv2D();
