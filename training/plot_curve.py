@@ -1,4 +1,3 @@
-# plot_curve.py
 import csv
 import matplotlib.pyplot as plt
 

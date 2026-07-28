@@ -23,6 +23,10 @@ def main():
         in_channels=in_channels,
         num_512_blocks=args.num_512_blocks)
 
+    # Checkpoint was saved on a CUDA device; this script runs locally with
+    # no GPU, so map_location="cpu" is required just to load it. Also fine
+    # either way: export does a single forward pass to trace the graph, so
+    # there'd be no benefit from GPU even if one were available.
     model.load_state_dict(torch.load(
         args.model_path, map_location="cpu"))
     model.eval()
@@ -33,7 +37,15 @@ def main():
         args.output,
         input_names=["input"],
         output_names=["output"],
+        # opset_version=13: chosen for onnx2tf compatibility — this model uses
+        # only long-standardized ops (Conv, ReLU6, GlobalAveragePool, etc.), so
+        # a newer opset gives no benefit, and 13 is solidly within onnx2tf's
+        # well-tested range.
         opset_version=13,
+        # dynamo=False: uses the older ONNX exporter instead of the newer
+        # default. The newer exporter only builds at opset 18 and failed when
+        # asked to convert down to opset 13 (a bug in that conversion step).
+        # The older exporter builds directly at opset 13, no conversion needed.
         dynamo=False,
     )
 

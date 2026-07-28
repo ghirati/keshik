@@ -20,11 +20,27 @@ def build_dataloaders(train_dir, val_dir, batch_size, grayscale, augmentation, n
             # ImageFolder will treat images as RGB images, even if they're stored as grayscale.
             T.Grayscale() if grayscale else T.Identity(),
             T.ToImage(),
+
+            # Rescales [0,255] uint8 -> [0,1] float32. Deliberately no Normalize()
+            # (no ImageNet mean/std) — keeps the model's expected input as plain
+            # [0,1], which is what makes the int8 quantization math simple.
+            #
+            # Without Normalize() (this pipeline):
+            #   int8_value = round(real_value/scale) + zero_point
+            #              = round((camera_byte/255) / (1/255)) - 128
+            #              = camera_byte - 128
+            #   -> one integer subtraction, no floats, same for every channel.
+            #
+            # With Normalize() (hypothetical, NOT used here):
+            #   real_value = (camera_byte/255 - mean[c]) / std[c]
+            #   int8_value = round(real_value / scale) + zero_point
+            #   -> doesn't simplify; needs float divide, per-channel mean/std
+            #      subtraction, then the quantize step — three ops instead of one,
+            #      per pixel per channel, every inference.
             T.ToDtype(torch.float32, scale=True),
         ])
 
         val_transform = T.Compose([
-            # ImageFolder will treat images as RGB images, even if they're stored as grayscale.
             T.Grayscale() if grayscale else T.Identity(),
             T.ToImage(),
             T.ToDtype(torch.float32, scale=True),
@@ -32,7 +48,6 @@ def build_dataloaders(train_dir, val_dir, batch_size, grayscale, augmentation, n
 
     else:
         train_transform = val_transform = T.Compose([
-            # ImageFolder will treat images as RGB images, even if they're stored as grayscale.
             T.Grayscale() if grayscale else T.Identity(),
             T.ToImage(),
             T.ToDtype(torch.float32, scale=True),
@@ -57,11 +72,32 @@ def build_model(alpha, in_channels, num_512_blocks):
 
 def train(model, train_loader, val_loader, device, num_epochs, learning_rate, l2_value, threshold, checkpoint_dir):
     model = model.to(device)
+
+    # Class balance is mild here — no pos_weight or resampling used.
+    # Recall bias for the sentry use case is handled at threshold-selection
+    # time instead (see evaluate.py), which is free to re-tune without
+    # retraining. Revisit pos_weight only if real-hardware fine-tuning
+    # data turns out to be heavily imbalanced.
     loss_fn = nn.BCEWithLogitsLoss()
 
     # Values are adapted from Wake Vision paper.
     optimizer = optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=l2_value)
+
+    # LR follows a cosine curve, monotonically decreasing from --lr at
+    # epoch 1 down toward 0 at epoch num_epochs — never increases. The
+    # *rate* of decrease varies (slow at the start, fastest around the
+    # middle, slow again near the end), but the value itself only goes
+    # down. The whole curve is shaped around num_epochs — running
+    # fewer/more epochs than planned (or stopping early) does NOT give
+    # the same schedule as training for that number from the start; the
+    # LR trajectory itself is different.
+    #
+    # No early stopping used: cutting training short would also cut the
+    # schedule short, sacrificing the low-LR fine-tuning phase the curve
+    # is built around. Instead, best-checkpoint saving (see save_checkpoint)
+    # lets the full schedule run and just keeps whichever epoch's weights
+    # were actually best — no need to guess the right stopping point.
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=num_epochs)
 
@@ -102,6 +138,8 @@ def train(model, train_loader, val_loader, device, num_epochs, learning_rate, l2
             train_loss += loss.item()
 
         scheduler.step()
+
+        # TODO: implement balanced accuracy, precision, recall, f1
         train_acc = (tp+tn) / (tp+fp+tn+fn)
         avg_train_loss = train_loss / len(train_loader)
         train_losses.append(avg_train_loss)
@@ -146,6 +184,7 @@ def validate(model, val_loader, loss_fn, device, threshold, label="Validation"):
             fn += ((preds == 0) & (y_actual == 1)).sum().item()
             val_loss += loss.item()
 
+        # TODO: implement balanced accuracy
         accuracy = (tp+tn) / (tp+fp+tn+fn)
         precision = tp / (tp+fp) if (tp+fp) else 0.0
         recall = tp / (tp+fn) if (tp+fn) else 0.0
@@ -178,6 +217,9 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--weight-decay", type=float, default=4e-6)
     parser.add_argument("--batch-size", type=int, default=128)
+    # Only affects which precision/recall/F1 get printed/logged during
+    # training — does not affect the loss or optimizer. Real threshold
+    # selection happens post-training; see evaluate.py.
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--alpha", type=float, default=0.25)
     parser.add_argument("--grayscale", action="store_true")
@@ -201,6 +243,12 @@ def main():
         num_workers=args.num_workers)
 
     in_channels = 1 if args.grayscale else 3
+
+    # TODO: try a different weight init. PyTorch already uses Kaiming
+    # uniform by default (fine for ReLU6), but MobileNet's reference
+    # implementation uses Kaiming normal with fan_out instead. Small
+    # effect expected (maybe faster early convergence) — not a fix
+    # for the epoch-12 overfitting, just worth testing separately.
     model = build_model(
         alpha=args.alpha,
         in_channels=in_channels,

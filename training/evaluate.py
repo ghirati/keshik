@@ -12,6 +12,12 @@ def main():
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--test-dir", default="data/test")
     parser.add_argument("--batch-size", type=int, default=128)
+    # TODO: retune via cost-weighted selection once real-hardware
+    # fine-tuning data exists. Sweep thresholds, compute
+    # cost = c_FN×FN + c_FP×FP at each, pick the minimum (c_FN/c_FP ratio
+    # reflects that a missed person is worse than a false alarm — 5:1 or
+    # 10:1 is reasonable). Current default (0.2) came from F1-maximization
+    # on Wake Vision validation — see README Status for that sweep's numbers.
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--alpha", type=float, default=0.25)
     parser.add_argument("--grayscale", action="store_true")

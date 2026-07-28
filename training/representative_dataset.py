@@ -34,11 +34,15 @@ def main():
         img = img.numpy().transpose(1, 2, 0)    # converts CHW -> HWC
         imgs.append(img)
 
-    calibration_dataset = np.stack(imgs, axis=0)    # (N, H, W, C) = NHWC
+    # onnx2tf expects one array with all calibration images stacked
+    # together. It also needs the images in NHWC layout, matching
+    # what the TensorFlow graph onnx2tf builds actually uses internally.
+    calibration_dataset = np.stack(imgs, axis=0)
     print(
         f"shape: {calibration_dataset.shape}, dtype: {calibration_dataset.dtype}")
 
     os.makedirs(os.path.dirname(args.npy_export_path), exist_ok=True)
+    # the onnx2tf's calibration input flag expects .npy file
     np.save(args.npy_export_path, calibration_dataset)
     print(f"Saved → {args.npy_export_path}")
 

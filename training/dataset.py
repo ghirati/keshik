@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from PIL import Image
 import argparse
 
-
+# load hugging face access token
 load_dotenv()
 hf_token = os.environ.get("HF_TOKEN")
 
@@ -39,14 +39,23 @@ def download_dataset(subset, grayscale=False):
         if not data["depiction"]:
 
             # Squash-resize (independent x/y scale, no crop/letterbox), bilinear.
+            # Chosen over crop (risks cutting a person out of frame near an edge —
+            # unacceptable for detection) and letterbox (wastes resolution on
+            # padding); a person doesn't need to survive geometrically perfect
+            # proportions to be recognized as "person."
+            #
             # This is the reference implementation — firmware must replicate this
-            # exact operation (not rely on the camera's built-in FRAMESIZE_96X96
-            # scaling, whose crop/squash behavior is unverified). See TODO.
+            # exact operation, not rely on the camera's built-in FRAMESIZE_96X96
+            # scaling, whose crop/squash behavior is unverified.
             img = data["image"].convert("L").resize(
                 (96, 96), Image.Resampling.BILINEAR) if grayscale else data["image"].resize((96, 96), Image.Resampling.BILINEAR)
 
             if (data["person"]):
-                # quality=90 in Pillow ≈ jpeg_quality=12 on the ESP32-S3 camera
+                # quality=90 in Pillow is roughly comparable to the ESP32-S3 camera's
+                # jpeg_quality~10-12 (that scale is inverted — lower means better).
+                # Exact equivalence unverified; not critical since this only affects
+                # fine compression artifacts, not resize/scale/format, which are the
+                # things that actually have to match exactly.
                 img.save(f"{person_dir}/{idx:08d}.jpg", quality=90)
                 num_person += 1
 

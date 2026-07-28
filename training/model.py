@@ -9,8 +9,10 @@ class FirstConv(nn.Module):
         self.conv = nn.Conv2d(in_channels=in_channels,
                               out_channels=out_channels,
                               kernel_size=3,
+                              # halves the spatial resolution (H, W) of the feature map
                               stride=2,
                               padding=1,
+                              # BatchNorm's own learned shift (beta) makes a conv bias redundant
                               bias=False)
         self.bn = nn.BatchNorm2d(num_features=out_channels)
         self.relu = nn.ReLU6()
@@ -28,15 +30,19 @@ class DepthwiseSeparableConv(nn.Module):
         out_channels = int(out_channels * alpha)
         stride = 2 if downsample else 1
 
+        # In depthwise convolution -> in_channels = out_channels = groups.
+        # It only captures spatial information.
         self.dwconv = nn.Conv2d(in_channels=in_channels,
                                 out_channels=in_channels,
                                 kernel_size=3,
                                 stride=stride,
                                 padding=1,
+                                # groups == in_channels: each input channel gets its own filter (depthwise)
                                 groups=in_channels,
                                 bias=False)
         self.bn0 = nn.BatchNorm2d(num_features=in_channels)
 
+        # Point wise convolution captures cross-channel information.
         self.pwconv = nn.Conv2d(in_channels=in_channels,
                                 out_channels=out_channels,
                                 kernel_size=1,
@@ -46,7 +52,11 @@ class DepthwiseSeparableConv(nn.Module):
                                 bias=False
                                 )
         self.bn1 = nn.BatchNorm2d(num_features=out_channels)
-
+        # ReLU has unbounded positive range, which is bad for int8 quantization —
+        # the quantizer must calibrate its scale against whatever max activation
+        # happens to occur, so a single outlier sample can waste precision.
+        # ReLU6 clips to a fixed [0, 6] range, giving quantization a stable,
+        # known range to calibrate against.
         self.relu = nn.ReLU6()
 
     def forward(self, x):
@@ -79,6 +89,7 @@ class ModifiedMobileNetV1(nn.Module):
 
         num_output_channels = self.depthwise_sep_conv8.pwconv.out_channels
 
+        # collapses H×W to 1×1, any input size
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
         self.fc = nn.Linear(num_output_channels, num_classes)
 
